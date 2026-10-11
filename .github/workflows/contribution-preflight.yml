@@ -69,3 +69,24 @@ jobs:
       run: |
         cd Examples/SwiftCalendarSample
         xcodebuild -project SwiftCalendarSample.xcodeproj -scheme SwiftCalendarSample -configuration ${{ matrix.configuration }} -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' CODE_SIGNING_ALLOWED=NO build test
+  existing-examples:
+    if: inputs.phase == 'full'
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        sample: [Calendar, Drive, YouTube, Storage]
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ inputs.patch_sha }}
+        persist-credentials: false
+    - name: Verify tested SHA
+      run: |
+        test "$(git rev-parse HEAD)" = "${{ inputs.patch_sha }}"
+        echo "Tested SHA: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+    - name: Build existing example in Debug and Release
+      run: |
+        cd Examples/${{ matrix.sample }}Sample
+        xcodebuild -scheme '${{ matrix.sample }}Sample' -configuration Debug build
+        xcodebuild -scheme '${{ matrix.sample }}Sample' -configuration Release build
