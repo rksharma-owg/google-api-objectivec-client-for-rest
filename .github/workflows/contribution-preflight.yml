@@ -29,6 +29,7 @@ jobs:
     - name: Test sample model on macOS
       run: |
         mkdir -p "$RUNNER_TEMP/sample-harness/Sources" "$RUNNER_TEMP/sample-harness/Tests"
+        cp Examples/SwiftCalendarSample/CalendarAuthorization.swift "$RUNNER_TEMP/sample-harness/Sources/"
         cp Examples/SwiftCalendarSample/CalendarModel.swift "$RUNNER_TEMP/sample-harness/Sources/"
         if [ -f Examples/SwiftCalendarSample/CalendarConfiguration.swift ]; then
           cp Examples/SwiftCalendarSample/CalendarConfiguration.swift "$RUNNER_TEMP/sample-harness/Sources/"
