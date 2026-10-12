@@ -1,0 +1,26 @@
+name: Example workflow security preflight
+on:
+  workflow_dispatch:
+    inputs:
+      patch_sha:
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ inputs.patch_sha }}
+        persist-credentials: false
+    - name: Verify tested SHA
+      run: |
+        test "$(git rev-parse HEAD)" = "${{ inputs.patch_sha }}"
+        echo "Tested SHA: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+    - name: Scan changed workflow
+      run: |
+        python3 -m venv "$RUNNER_TEMP/zizmor"
+        "$RUNNER_TEMP/zizmor/bin/pip" install zizmor==1.25.2
+        "$RUNNER_TEMP/zizmor/bin/zizmor" --offline --no-config --min-severity medium .github/workflows/examples.yml
