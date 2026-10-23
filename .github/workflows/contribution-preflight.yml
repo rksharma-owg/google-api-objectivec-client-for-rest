@@ -28,10 +28,11 @@
           "name": "Test sample model on macOS",
           "run": "mkdir -p \"$RUNNER_TEMP/sample-harness/Sources\" \"$RUNNER_TEMP/sample-harness/Tests\"\ncp Examples/SwiftCalendarSample/CalendarAuthorization.swift \"$RUNNER_TEMP/sample-harness/Sources/\"\ncp Examples/SwiftCalendarSample/CalendarModel.swift \"$RUNNER_TEMP/sample-harness/Sources/\"\nif [ -f Examples/SwiftCalendarSample/CalendarConfiguration.swift ]; then\n  cp Examples/SwiftCalendarSample/CalendarConfiguration.swift \"$RUNNER_TEMP/sample-harness/Sources/\"\nfi\ncp Examples/SwiftCalendarSample/Tests/*.swift \"$RUNNER_TEMP/sample-harness/Tests/\"\nexport SAMPLE_REPO_PATH=\"$GITHUB_WORKSPACE\"\npython3 - <<'PYCODE'\nimport os\nfrom pathlib import Path\nmanifest = '// swift-tools-version:5.9\\nimport PackageDescription\\n'\nmanifest += 'let package = Package(name: \"SwiftCalendarSample\", platforms: [.macOS(.v14)], dependencies: [\\n'\nmanifest += '.package(path: \"' + os.environ['SAMPLE_REPO_PATH'] + '\"),\\n'\nmanifest += '.package(url: \"https://github.com/google/GTMAppAuth.git\", from: \"5.0.0\")\\n], targets: [\\n'\nmanifest += '.target(name: \"SwiftCalendarSample\", dependencies: [.product(name: \"GoogleAPIClientForREST_Calendar\", package: \"google-api-objectivec-client-for-rest\"), .product(name: \"GTMAppAuth\", package: \"GTMAppAuth\")], path: \"Sources\"),\\n'\nmanifest += '.testTarget(name: \"SwiftCalendarSampleTests\", dependencies: [\"SwiftCalendarSample\"], path: \"Tests\")\\n])\\n'\nPath(os.environ['RUNNER_TEMP'] + '/sample-harness/Package.swift').write_text(manifest)\nPYCODE\ncd \"$RUNNER_TEMP/sample-harness\"\nswift test\n"
         }
-      ]
+      ],
+      "if": "inputs.phase != 'simulator'"
     },
     "simulator": {
-      "if": "inputs.phase == 'full'",
+      "if": "inputs.phase == 'full' || inputs.phase == 'simulator'",
       "runs-on": "macos-26",
       "strategy": {
         "fail-fast": false,
@@ -59,6 +60,10 @@
             "PATCH_SHA": "${{ inputs.patch_sha }}",
             "BASE_SHA": "${{ inputs.base_sha }}"
           }
+        },
+        {
+          "name": "Inspect simulator availability",
+          "run": "xcrun simctl list runtimes\nxcrun simctl list devices available\nxcodebuild -project Examples/SwiftCalendarSample/SwiftCalendarSample.xcodeproj -scheme SwiftCalendarSample -showdestinations"
         },
         {
           "name": "Build and test sample",
@@ -132,7 +137,8 @@
           },
           "run": "set -euo pipefail\npython3 -m venv \"$RUNNER_TEMP/zizmor-env\"\n\"$RUNNER_TEMP/zizmor-env/bin/pip\" install zizmor==1.25.2\n\"$RUNNER_TEMP/zizmor-env/bin/zizmor\" --no-config --no-ignores --no-progress .github/workflows/examples.yml"
         }
-      ]
+      ],
+      "if": "inputs.phase != 'simulator'"
     }
   },
   "on": {
@@ -148,7 +154,8 @@
           "type": "choice",
           "options": [
             "model",
-            "full"
+            "full",
+            "simulator"
           ]
         },
         "base_sha": {
