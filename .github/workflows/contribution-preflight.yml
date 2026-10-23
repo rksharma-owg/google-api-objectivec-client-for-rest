@@ -1,92 +1,161 @@
-name: Swift Calendar contribution preflight
-on:
-  workflow_dispatch:
-    inputs:
-      patch_sha:
-        required: true
-        type: string
-      phase:
-        required: true
-        default: model
-        type: choice
-        options: [model, full]
-permissions:
-  contents: read
-jobs:
-  model:
-    runs-on: macos-26
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        ref: ${{ inputs.patch_sha }}
-        persist-credentials: false
-    - name: Verify tested SHA
-      run: |
-        test "$(git rev-parse HEAD)" = "${{ inputs.patch_sha }}"
-        echo "Tested SHA: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
-        swift --version
-        xcodebuild -version
-    - name: Test sample model on macOS
-      run: |
-        mkdir -p "$RUNNER_TEMP/sample-harness/Sources" "$RUNNER_TEMP/sample-harness/Tests"
-        cp Examples/SwiftCalendarSample/CalendarAuthorization.swift "$RUNNER_TEMP/sample-harness/Sources/"
-        cp Examples/SwiftCalendarSample/CalendarModel.swift "$RUNNER_TEMP/sample-harness/Sources/"
-        if [ -f Examples/SwiftCalendarSample/CalendarConfiguration.swift ]; then
-          cp Examples/SwiftCalendarSample/CalendarConfiguration.swift "$RUNNER_TEMP/sample-harness/Sources/"
-        fi
-        cp Examples/SwiftCalendarSample/Tests/*.swift "$RUNNER_TEMP/sample-harness/Tests/"
-        export SAMPLE_REPO_PATH="$GITHUB_WORKSPACE"
-        python3 - <<'PYCODE'
-        import os
-        from pathlib import Path
-        manifest = '// swift-tools-version:5.8\nimport PackageDescription\n'
-        manifest += 'let package = Package(name: "SwiftCalendarSample", platforms: [.macOS(.v12)], dependencies: [\n'
-        manifest += '.package(path: "' + os.environ['SAMPLE_REPO_PATH'] + '"),\n'
-        manifest += '.package(url: "https://github.com/google/GTMAppAuth.git", from: "5.0.0")\n], targets: [\n'
-        manifest += '.target(name: "SwiftCalendarSample", dependencies: [.product(name: "GoogleAPIClientForREST_Calendar", package: "google-api-objectivec-client-for-rest"), .product(name: "GTMAppAuth", package: "GTMAppAuth")], path: "Sources"),\n'
-        manifest += '.testTarget(name: "SwiftCalendarSampleTests", dependencies: ["SwiftCalendarSample"], path: "Tests")\n])\n'
-        Path(os.environ['RUNNER_TEMP'] + '/sample-harness/Package.swift').write_text(manifest)
-        PYCODE
-        cd "$RUNNER_TEMP/sample-harness"
-        swift test
-  simulator:
-    if: inputs.phase == 'full'
-    runs-on: macos-26
-    strategy:
-      fail-fast: false
-      matrix:
-        configuration: [Debug, Release]
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        ref: ${{ inputs.patch_sha }}
-        persist-credentials: false
-    - name: Verify tested SHA
-      run: |
-        test "$(git rev-parse HEAD)" = "${{ inputs.patch_sha }}"
-        echo "Tested SHA: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
-    - name: Build and test sample
-      run: |
-        cd Examples/SwiftCalendarSample
-        xcodebuild -project SwiftCalendarSample.xcodeproj -scheme SwiftCalendarSample -configuration ${{ matrix.configuration }} -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' CODE_SIGNING_ALLOWED=NO build test
-  existing-examples:
-    if: inputs.phase == 'full'
-    runs-on: macos-26
-    strategy:
-      fail-fast: false
-      matrix:
-        sample: [Calendar, Drive, YouTube, Storage]
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        ref: ${{ inputs.patch_sha }}
-        persist-credentials: false
-    - name: Verify tested SHA
-      run: |
-        test "$(git rev-parse HEAD)" = "${{ inputs.patch_sha }}"
-        echo "Tested SHA: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
-    - name: Build existing example in Debug and Release
-      run: |
-        cd Examples/${{ matrix.sample }}Sample
-        xcodebuild -scheme '${{ matrix.sample }}Sample' -configuration Debug build
-        xcodebuild -scheme '${{ matrix.sample }}Sample' -configuration Release build
+{
+  "name": "Swift Calendar contribution preflight",
+  "permissions": {
+    "contents": "read"
+  },
+  "jobs": {
+    "model": {
+      "runs-on": "macos-26",
+      "steps": [
+        {
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {
+            "ref": "${{ inputs.patch_sha }}",
+            "persist-credentials": false,
+            "fetch-depth": 0
+          }
+        },
+        {
+          "name": "Verify tested SHA",
+          "run": "set -euo pipefail\n[[ \"$PATCH_SHA\" =~ ^[0-9a-f]{40}$ ]]\n[[ \"$BASE_SHA\" =~ ^[0-9a-f]{40}$ ]]\ntest \"$(git rev-parse HEAD)\" = \"$PATCH_SHA\"\ngit merge-base --is-ancestor \"$BASE_SHA\" HEAD\nprintf \"Tested source: %s\\nTarget baseline: %s\\n\" \"$PATCH_SHA\" \"$BASE_SHA\"\nswift --version\nxcodebuild -version",
+          "shell": "bash",
+          "env": {
+            "PATCH_SHA": "${{ inputs.patch_sha }}",
+            "BASE_SHA": "${{ inputs.base_sha }}"
+          }
+        },
+        {
+          "name": "Test sample model on macOS",
+          "run": "mkdir -p \"$RUNNER_TEMP/sample-harness/Sources\" \"$RUNNER_TEMP/sample-harness/Tests\"\ncp Examples/SwiftCalendarSample/CalendarAuthorization.swift \"$RUNNER_TEMP/sample-harness/Sources/\"\ncp Examples/SwiftCalendarSample/CalendarModel.swift \"$RUNNER_TEMP/sample-harness/Sources/\"\nif [ -f Examples/SwiftCalendarSample/CalendarConfiguration.swift ]; then\n  cp Examples/SwiftCalendarSample/CalendarConfiguration.swift \"$RUNNER_TEMP/sample-harness/Sources/\"\nfi\ncp Examples/SwiftCalendarSample/Tests/*.swift \"$RUNNER_TEMP/sample-harness/Tests/\"\nexport SAMPLE_REPO_PATH=\"$GITHUB_WORKSPACE\"\npython3 - <<'PYCODE'\nimport os\nfrom pathlib import Path\nmanifest = '// swift-tools-version:5.9\\nimport PackageDescription\\n'\nmanifest += 'let package = Package(name: \"SwiftCalendarSample\", platforms: [.macOS(.v14)], dependencies: [\\n'\nmanifest += '.package(path: \"' + os.environ['SAMPLE_REPO_PATH'] + '\"),\\n'\nmanifest += '.package(url: \"https://github.com/google/GTMAppAuth.git\", from: \"5.0.0\")\\n], targets: [\\n'\nmanifest += '.target(name: \"SwiftCalendarSample\", dependencies: [.product(name: \"GoogleAPIClientForREST_Calendar\", package: \"google-api-objectivec-client-for-rest\"), .product(name: \"GTMAppAuth\", package: \"GTMAppAuth\")], path: \"Sources\"),\\n'\nmanifest += '.testTarget(name: \"SwiftCalendarSampleTests\", dependencies: [\"SwiftCalendarSample\"], path: \"Tests\")\\n])\\n'\nPath(os.environ['RUNNER_TEMP'] + '/sample-harness/Package.swift').write_text(manifest)\nPYCODE\ncd \"$RUNNER_TEMP/sample-harness\"\nswift test\n"
+        }
+      ]
+    },
+    "simulator": {
+      "if": "inputs.phase == 'full'",
+      "runs-on": "macos-26",
+      "strategy": {
+        "fail-fast": false,
+        "matrix": {
+          "configuration": [
+            "Debug",
+            "Release"
+          ]
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {
+            "ref": "${{ inputs.patch_sha }}",
+            "persist-credentials": false,
+            "fetch-depth": 0
+          }
+        },
+        {
+          "name": "Verify tested SHA",
+          "run": "set -euo pipefail\n[[ \"$PATCH_SHA\" =~ ^[0-9a-f]{40}$ ]]\n[[ \"$BASE_SHA\" =~ ^[0-9a-f]{40}$ ]]\ntest \"$(git rev-parse HEAD)\" = \"$PATCH_SHA\"\ngit merge-base --is-ancestor \"$BASE_SHA\" HEAD\nprintf \"Tested source: %s\\nTarget baseline: %s\\n\" \"$PATCH_SHA\" \"$BASE_SHA\"\nswift --version\nxcodebuild -version",
+          "shell": "bash",
+          "env": {
+            "PATCH_SHA": "${{ inputs.patch_sha }}",
+            "BASE_SHA": "${{ inputs.base_sha }}"
+          }
+        },
+        {
+          "name": "Build and test sample",
+          "run": "cd Examples/SwiftCalendarSample\nxcodebuild -project SwiftCalendarSample.xcodeproj -scheme SwiftCalendarSample -configuration ${{ matrix.configuration }} -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' CODE_SIGNING_ALLOWED=NO build test\n"
+        }
+      ]
+    },
+    "existing-examples": {
+      "if": "inputs.phase == 'full'",
+      "runs-on": "macos-26",
+      "strategy": {
+        "fail-fast": false,
+        "matrix": {
+          "sample": [
+            "Calendar",
+            "Drive",
+            "YouTube",
+            "Storage"
+          ]
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {
+            "ref": "${{ inputs.patch_sha }}",
+            "persist-credentials": false,
+            "fetch-depth": 0
+          }
+        },
+        {
+          "name": "Verify tested SHA",
+          "run": "set -euo pipefail\n[[ \"$PATCH_SHA\" =~ ^[0-9a-f]{40}$ ]]\n[[ \"$BASE_SHA\" =~ ^[0-9a-f]{40}$ ]]\ntest \"$(git rev-parse HEAD)\" = \"$PATCH_SHA\"\ngit merge-base --is-ancestor \"$BASE_SHA\" HEAD\nprintf \"Tested source: %s\\nTarget baseline: %s\\n\" \"$PATCH_SHA\" \"$BASE_SHA\"\nswift --version\nxcodebuild -version",
+          "shell": "bash",
+          "env": {
+            "PATCH_SHA": "${{ inputs.patch_sha }}",
+            "BASE_SHA": "${{ inputs.base_sha }}"
+          }
+        },
+        {
+          "name": "Build existing example in Debug and Release",
+          "run": "cd Examples/${{ matrix.sample }}Sample\nxcodebuild -scheme '${{ matrix.sample }}Sample' -configuration Debug build\nxcodebuild -scheme '${{ matrix.sample }}Sample' -configuration Release build\n"
+        }
+      ]
+    },
+    "workflow-security": {
+      "runs-on": "macos-26",
+      "steps": [
+        {
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {
+            "ref": "${{ inputs.patch_sha }}",
+            "persist-credentials": false,
+            "fetch-depth": 0
+          }
+        },
+        {
+          "name": "Verify tested SHA",
+          "run": "set -euo pipefail\n[[ \"$PATCH_SHA\" =~ ^[0-9a-f]{40}$ ]]\n[[ \"$BASE_SHA\" =~ ^[0-9a-f]{40}$ ]]\ntest \"$(git rev-parse HEAD)\" = \"$PATCH_SHA\"\ngit merge-base --is-ancestor \"$BASE_SHA\" HEAD\nprintf \"Tested source: %s\\nTarget baseline: %s\\n\" \"$PATCH_SHA\" \"$BASE_SHA\"\nswift --version\nxcodebuild -version",
+          "shell": "bash",
+          "env": {
+            "PATCH_SHA": "${{ inputs.patch_sha }}",
+            "BASE_SHA": "${{ inputs.base_sha }}"
+          }
+        },
+        {
+          "name": "Check the changed workflow with zizmor 1.25.2",
+          "shell": "bash",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "run": "set -euo pipefail\npython3 -m venv \"$RUNNER_TEMP/zizmor-env\"\n\"$RUNNER_TEMP/zizmor-env/bin/pip\" install zizmor==1.25.2\n\"$RUNNER_TEMP/zizmor-env/bin/zizmor\" --no-config --no-ignores --no-progress .github/workflows/examples.yml"
+        }
+      ]
+    }
+  },
+  "on": {
+    "workflow_dispatch": {
+      "inputs": {
+        "patch_sha": {
+          "required": true,
+          "type": "string"
+        },
+        "phase": {
+          "required": true,
+          "default": "model",
+          "type": "choice",
+          "options": [
+            "model",
+            "full"
+          ]
+        },
+        "base_sha": {
+          "required": true,
+          "type": "string"
+        }
+      }
+    }
+  }
+}
