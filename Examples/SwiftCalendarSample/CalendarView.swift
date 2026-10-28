@@ -18,7 +18,7 @@ struct CalendarView: View {
   let authorization: CalendarAuthorization
 
   var body: some View {
-    NavigationView {
+    NavigationStack {
       List {
         authorizationSection
         if authorization.session != nil {
@@ -27,14 +27,13 @@ struct CalendarView: View {
       }
       .navigationTitle("Google Calendar")
     }
-    .navigationViewStyle(.stack)
   }
 
   private var authorizationSection: some View {
     Section {
       authorizationControls
       if let error = authorization.error {
-        Text(error).foregroundColor(.red)
+        Text(error).foregroundStyle(.red)
         if authorization.session == nil {
           Button("Clear saved sign-in", action: authorization.signOut)
         }
@@ -62,13 +61,13 @@ struct CalendarView: View {
         VStack(alignment: .leading, spacing: 4) {
           Text(event.summary.flatMap { $0.isEmpty ? nil : $0 } ?? "Untitled event")
           Text(CalendarModel.startDescription(for: event))
-            .font(.subheadline).foregroundColor(.secondary)
+            .font(.subheadline).foregroundStyle(.secondary)
         }
       }
       if model.isLoading {
         ProgressView("Loading events…")
       } else if model.events.isEmpty && model.error == nil {
-        Text("No upcoming events.").foregroundColor(.secondary)
+        Text("No upcoming events.").foregroundStyle(.secondary)
       }
       pagingControls
     }
@@ -77,7 +76,7 @@ struct CalendarView: View {
   @ViewBuilder
   private var pagingControls: some View {
     if let error = model.error {
-      Text(error).foregroundColor(.red)
+      Text(error).foregroundStyle(.red)
       Button(model.hasMore ? "Retry next page" : "Retry") {
         if model.hasMore { model.loadMore() } else { model.refresh() }
       }.disabled(model.isLoading)
