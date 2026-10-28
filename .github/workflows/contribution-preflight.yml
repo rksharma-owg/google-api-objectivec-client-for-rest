@@ -67,7 +67,7 @@
         },
         {
           "name": "Build and test sample",
-          "run": "cd Examples/SwiftCalendarSample\nxcodebuild -project SwiftCalendarSample.xcodeproj -scheme SwiftCalendarSample -configuration ${{ matrix.configuration }} -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' CODE_SIGNING_ALLOWED=NO build test\n"
+          "run": "cd Examples/SwiftCalendarSample\n../../.github/workflows/retry.sh -- xcodebuild -project SwiftCalendarSample.xcodeproj -scheme SwiftCalendarSample -configuration ${{ matrix.configuration }} -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' CODE_SIGNING_ALLOWED=NO build test\n"
         }
       ]
     },
